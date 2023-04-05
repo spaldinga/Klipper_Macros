@@ -8,7 +8,7 @@
 # been changed, the print can be resumed from its previous position
 # with the "RESUME" gcode.
 
-[pause_resume]
+# [pause_resume]
 
 [gcode_macro M600]
 gcode:
@@ -166,3 +166,49 @@ gcode:
   _PAUSE_INNER_M700 {% for k in params %}{' '~k~'="'~params[k]~'"'}{% endfor %}
   UNLOAD_FILAMENT LENGTH={
     params.U|default(printer["gcode_macro _km_globals"].load_length)|float}
+
+##
+# Credit @treefic, awesome idea!
+# original: https://github.com/treeific/3D_Printer/tree/main/macros/cold_pull
+##
+[gcode_macro COLD_PULL]
+gcode:
+    # Change these
+    {% set hotend =  235 %} 		# my melting temp for ABS
+    {% set cold_pull = 105 %}		# my cold pull for ABS
+    {% set press = 11 %}		# how long to press/extrude filiment while cooling off
+                        # @ 20mm... 20 about 60 seconds, 16 about 75 seconds, 14 about 85 seconds, 13 about 90 seconds, 10 about 120 seconds
+
+    # Shouldn't need to change these
+    {% set prime = 1 %}             # purge in mm
+    {% set prime_delay = 20 %}      # wait in sec
+    {% set cool_down = 1 %}         # wait in min
+    {% set notify_wait = 5 %}       # wait in sec
+
+    # start work
+        _LOGGER MSG="Starting cold pull process."
+        _LOGGER MSG="Warm up."
+    M109 S{hotend}                          # warm up
+        _LOGGER MSG="TURN_OFF_HEATERS"
+    TURN_OFF_HEATERS                        # start cooling off
+        _LOGGER MSG="Press the plastic while cooling"
+    M83                                     # relative extrustion
+    G1 E20 F{press}                         # @ 20mm... 20 about 60 seconds, 16 about 75 seconds, 14 about 85 seconds, 13 about 90 seconds, 10 about 120 seconds
+        _LOGGER MSG="Cool way down"
+    M109 S60                                # Cool down to cold and wait
+        _LOGGER MSG="Waiting"
+    G4 P{cool_down*60000}                   # Wait for the whole hotend to reach cold_pull temp
+        _LOGGER MSG="Raise to almost cold_pull temp"
+    M109 S{cold_pull-10}                       # Warm up to almost cold_pull temp
+        _LOGGER MSG="Set cold_pull temp and start pulling"
+    M104 S{cold_pull}                       # Warm up to cold_pull temp
+    G4 P{5000}                              # Wait for temp to rise a little
+        _LOGGER MSG="Automatic Cold Pull!"
+    G1 E-20 F60                              # Try an automatic pull... 20mm@1mms
+    #_case_fan_on                            # It's ready! Notify somehow...
+    #_bed_fan_on                             # It's ready! Notify somehow...
+    #_case_light_on                          # It's ready! Notify somehow...
+    G4 P{notify_wait*1000}                  # Wait for attention
+        _LOGGER MSG="Pull Manually!"
+    #_case_fan_off                           # Give up the attention
+    #_bed_fan_off                            # Give up the attention
